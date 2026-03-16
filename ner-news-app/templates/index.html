@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NER · News Entity Extractor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Instrument+Sans:ital,wght@0,400;0,500;1,400&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0B0C10;
+      --bg2: #111318;
+      --surface: #1A1C24;
+      --surface2: #22252F;
+      --border: #2D3142;
+      --text: #E8E9F0;
+      --muted: #6B7080;
+      --accent: #3B82F6;
+      --accent2: #10B981;
+      --glow: rgba(59, 130, 246, 0.15);
+      --radius: 16px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Instrument Sans', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .bg-mesh {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 10%, rgba(59, 130, 246, 0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 80%, rgba(16, 185, 129, 0.06) 0%, transparent 50%),
+        radial-gradient(ellipse 50% 50% at 50% 50%, rgba(245, 158, 11, 0.04) 0%, transparent 60%);
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 52px;
+      animation: fadeDown 0.8s ease both;
+    }
+
+    .logo-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(59, 130, 246, 0.08);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: 100px;
+      padding: 6px 16px;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 24px;
+    }
+
+    .logo-tag::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 6px var(--accent);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(2.4rem, 6vw, 4rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+
+    h1 span { color: var(--accent); }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.6;
+      max-width: 520px;
+      margin: 0 auto;
+    }
+
+    .input-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      margin-bottom: 28px;
+      animation: fadeUp 0.8s 0.2s ease both;
+      transition: border-color 0.3s;
+    }
+
+    .input-card:focus-within {
+      border-color: rgba(59, 130, 246, 0.4);
+      box-shadow: 0 0 0 4px var(--glow);
+    }
+
+    .input-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+    }
+
+    #char-count { color: var(--accent); }
+
+    textarea {
+      width: 100%;
+      min-height: 130px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: 'Instrument Sans', sans-serif;
+      font-size: 1rem;
+      line-height: 1.65;
+      padding: 16px;
+      resize: vertical;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+
+    textarea::placeholder { color: var(--muted); }
+    textarea:focus { border-color: rgba(59, 130, 246, 0.4); }
+
+    .input-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 16px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .file-upload {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .file-label {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 8px 16px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .file-label:hover {
+      background: var(--border);
+    }
+    #file-input {
+      display: none;
+    }
+    #file-name {
+      font-size: 12px;
+      color: var(--muted);
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .example-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 5px 12px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .chip:hover {
+      background: var(--border);
+      color: var(--text);
+      border-color: rgba(59, 130, 246, 0.3);
+    }
+
+    .analyze-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #3B82F6, #2563EB);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 28px;
+      font-family: 'Syne', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 4px 20px rgba(37, 99, 235, 0.3);
+    }
+
+    .analyze-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 28px rgba(37, 99, 235, 0.45);
+    }
+
+    .analyze-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-icon { font-size: 16px; }
+
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 40px;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      animation: fadeUp 0.4s ease both;
+    }
+
+    .loader {
+      width: 36px;
+      height: 36px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      margin: 0 auto 16px;
+      animation: spin 0.8s linear infinite;
+    }
+
+    #results { animation: fadeUp 0.6s ease both; }
+
+    .results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .results-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+
+    .stats {
+      display: flex;
+      gap: 16px;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .stat-val { color: var(--text); }
+
+    .entity-section {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      margin: 24px 0;
+    }
+
+    .entity-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .entity-card h3 {
+      font-family: 'Syne', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--accent);
+    }
+
+    .entity-list {
+      list-style: none;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+
+    .entity-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+
+    .entity-item:last-child { border-bottom: none; }
+
+    .entity-name {
+      color: var(--text);
+      word-break: break-word;
+      padding-right: 8px;
+    }
+
+    .entity-count {
+      background: var(--bg2);
+      border-radius: 100px;
+      padding: 2px 10px;
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      color: var(--accent);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    .empty-msg {
+      color: var(--muted);
+      font-style: italic;
+      font-size: 13px;
+      padding: 8px 0;
+    }
+
+    .error-msg {
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      border-radius: 10px;
+      padding: 14px 18px;
+      color: #FCA5A5;
+      font-size: 14px;
+      display: none;
+    }
+
+    @keyframes fadeDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: none; } }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    @media (max-width: 700px) {
+      .entity-section { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="bg-mesh"></div>
+
+  <div class="container">
+    <header>
+      <div class="logo-tag">Named Entity Recognition for News</div>
+      <h1>Entity<span>Extract</span></h1>
+      <p class="subtitle">Identify persons, organizations and locations in news articles — just paste text or upload a .txt file.</p>
+    </header>
+
+    <div class="input-card">
+      <div class="input-label">
+        <span>📄 Input Text / File</span>
+        <span id="char-count">0 chars</span>
+      </div>
+      <textarea id="text-input" placeholder="Paste a news excerpt or article here..." maxlength="5000"></textarea>
+      
+      <div class="input-footer">
+        <div class="file-upload">
+          <label for="file-input" class="file-label">📁 Choose file</label>
+          <input type="file" id="file-input" accept=".txt">
+          <span id="file-name">No file chosen</span>
+        </div>
+        <button class="analyze-btn" onclick="analyzeText()" id="analyze-btn">
+          <span class="btn-icon">⚡</span> Extract Entities
+        </button>
+      </div>
+
+      <div style="margin-top: 16px;">
+        <div class="example-chips">
+          <span class="chip" onclick="setExample('Apple Inc. announced a new store in London today. Tim Cook said it\'s a milestone.')">🍎 Apple / Tim Cook / London</span>
+          <span class="chip" onclick="setExample('The UN meeting in New York was attended by Emmanuel Macron and Justin Trudeau.')">🌐 UN / Macron / Trudeau</span>
+          <span class="chip" onclick="setExample('Microsoft acquired a startup in Seattle. Satya Nadella praised the team.')">💻 Microsoft / Satya / Seattle</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="error-msg" id="error-msg"></div>
+
+    <div class="loading" id="loading">
+      <div class="loader"></div>
+      Analyzing entities...
+    </div>
+
+    <div id="results" style="display:none">
+      <div class="results-header">
+        <div class="results-title">Extracted Entities</div>
+        <div class="stats">
+          <span><span class="stat-val" id="stat-words">0</span> words</span>
+          <span><span class="stat-val" id="stat-sentences">0</span> sentences</span>
+          <span><span class="stat-val" id="stat-entities">0</span> entities</span>
+        </div>
+      </div>
+
+      <div class="entity-section">
+        <div class="entity-card">
+          <h3>👤 Persons</h3>
+          <div class="entity-list" id="persons-list"></div>
+        </div>
+        <div class="entity-card">
+          <h3>🏢 Organizations</h3>
+          <div class="entity-list" id="orgs-list"></div>
+        </div>
+        <div class="entity-card">
+          <h3>📍 Locations</h3>
+          <div class="entity-list" id="locs-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const textarea = document.getElementById('text-input');
+    const charCount = document.getElementById('char-count');
+    const fileInput = document.getElementById('file-input');
+    const fileName = document.getElementById('file-name');
+    const analyzeBtn = document.getElementById('analyze-btn');
+    const loadingEl = document.getElementById('loading');
+    const resultsPanel = document.getElementById('results');
+    const errorEl = document.getElementById('error-msg');
+
+    textarea.addEventListener('input', () => {
+      charCount.textContent = textarea.value.length + ' chars';
+    });
+
+    fileInput.addEventListener('change', () => {
+      fileName.textContent = fileInput.files[0] ? fileInput.files[0].name : 'No file chosen';
+    });
+
+    textarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.ctrlKey) analyzeText();
+    });
+
+    function setExample(text) {
+      textarea.value = text;
+      charCount.textContent = text.length + ' chars';
+      fileInput.value = '';
+      fileName.textContent = 'No file chosen';
+    }
+
+    async function analyzeText() {
+      const formData = new FormData();
+
+      if (fileInput.files.length > 0) {
+        formData.append('file', fileInput.files[0]);
+      } else {
+        const text = textarea.value.trim();
+        if (!text) {
+          errorEl.textContent = 'Please enter some text or select a file.';
+          errorEl.style.display = 'block';
+          return;
+        }
+        formData.append('text', text);
+      }
+
+      analyzeBtn.disabled = true;
+      loadingEl.style.display = 'block';
+      resultsPanel.style.display = 'none';
+      errorEl.style.display = 'none';
+
+      try {
+        const response = await fetch('/analyze', { method: 'POST', body: formData });
+        const data = await response.json();
+
+        if (data.error) throw new Error(data.error);
+
+        renderResults(data);
+      } catch (err) {
+        errorEl.textContent = err.message || 'Analysis failed.';
+        errorEl.style.display = 'block';
+      } finally {
+        analyzeBtn.disabled = false;
+        loadingEl.style.display = 'none';
+      }
+    }
+
+    function renderResults(data) {
+      document.getElementById('stat-words').textContent = data.word_count;
+      document.getElementById('stat-sentences').textContent = data.sentence_count;
+      const totalEntities = (data.persons.length + data.organizations.length + data.locations.length);
+      document.getElementById('stat-entities').textContent = totalEntities;
+
+      const personsList = document.getElementById('persons-list');
+      personsList.innerHTML = '';
+      if (data.persons.length === 0) {
+        personsList.innerHTML = '<div class="empty-msg">No persons detected</div>';
+      } else {
+        data.persons.forEach(p => {
+          const item = document.createElement('div');
+          item.className = 'entity-item';
+          item.innerHTML = `<span class="entity-name">${escapeHTML(p.name)}</span><span class="entity-count">${p.count}</span>`;
+          personsList.appendChild(item);
+        });
+      }
+
+      const orgsList = document.getElementById('orgs-list');
+      orgsList.innerHTML = '';
+      if (data.organizations.length === 0) {
+        orgsList.innerHTML = '<div class="empty-msg">No organizations detected</div>';
+      } else {
+        data.organizations.forEach(o => {
+          const item = document.createElement('div');
+          item.className = 'entity-item';
+          item.innerHTML = `<span class="entity-name">${escapeHTML(o.name)}</span><span class="entity-count">${o.count}</span>`;
+          orgsList.appendChild(item);
+        });
+      }
+
+      const locsList = document.getElementById('locs-list');
+      locsList.innerHTML = '';
+      if (data.locations.length === 0) {
+        locsList.innerHTML = '<div class="empty-msg">No locations detected</div>';
+      } else {
+        data.locations.forEach(l => {
+          const item = document.createElement('div');
+          item.className = 'entity-item';
+          item.innerHTML = `<span class="entity-name">${escapeHTML(l.name)}</span><span class="entity-count">${l.count}</span>`;
+          locsList.appendChild(item);
+        });
+      }
+
+      resultsPanel.style.display = 'block';
+    }
+
+    function escapeHTML(str) {
+      return str.replace(/[&<>"]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        if (m === '"') return '&quot;';
+        return m;
+      });
+    }
+  </script>
+</body>
+
+</html>
